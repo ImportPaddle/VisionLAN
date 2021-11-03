@@ -1,3 +1,4 @@
+import numpy
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -32,7 +33,7 @@ class cha_encdec():
     def decode(self, net_out, length):
         out = []
         out_prob = []
-        net_out = F.softmax(net_out, axis=1)
+        net_out = F.softmax(paddle.to_tensor(numpy.array(net_out)), axis=1)
         for i in range(0, length.shape[0]):
             current_idx_list = net_out[int(length[:i].sum()): int(length[:i].sum() + length[i])].topk(1)[1][:,
                                0].tolist()

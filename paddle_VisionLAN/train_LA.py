@@ -7,12 +7,15 @@ import datetime
 
 from api import LongTensor, IntTensor, clip_grad_norm_
 from utils import *
-import cfgs.cfgs_check as cfgs
+import sys
+import os
+DIR = os.path.split(os.path.realpath(__file__))[0]
+sys.path.append(os.path.join(DIR, '../'))
+from paddle_VisionLAN.cfgs import cfgs_check as cfgs
 # import cfgs.cfgs_LA as cfgs
 from collections import OrderedDict
 import time
-import sys
-import os
+
 
 def flatten_label(target):
     label_flatten = []

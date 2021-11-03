@@ -1,100 +1,85 @@
-import os
-import numpy as np
-from reprod_log import ReprodDiffHelper
-from reprod_log import ReprodLogger
-import torch, paddle
+def paddleRes():
+    result = {}
+    import paddle
+    from paddle import nn
+    import paddle_VisionLAN.cfgs.cfgs_check as cfgs
+    from paddle_VisionLAN.train_LA import load_network
+    from paddle_VisionLAN.train_LA import generate_optimizer
+    from paddle_VisionLAN.train_LA import Train_or_Eval, flatten_label, _flatten, Zero_Grad, test
+    from paddle_VisionLAN.utils import Attention_AR_counter, cha_encdec
+    from paddle_VisionLAN.api import clip_grad_norm_
+    paddle.seed(SEED)
+    model = load_network()
+    optimizer, optimizer_scheduler = generate_optimizer(model)
+    criterion_CE = nn.CrossEntropyLoss()
+    L1_loss = nn.L1Loss()
+    # tools prepare
+    train_acc_counter = Attention_AR_counter('train accuracy: ', cfgs.dataset_cfgs['dict_dir'],
+                                             cfgs.dataset_cfgs['case_sensitive'])
+    train_acc_counter_rem = Attention_AR_counter('train accuracy: ', cfgs.dataset_cfgs['dict_dir'],
+                                                 cfgs.dataset_cfgs['case_sensitive'])
+    train_acc_counter_sub = Attention_AR_counter('train accuracy: ', cfgs.dataset_cfgs['dict_dir'],
+                                                 cfgs.dataset_cfgs['case_sensitive'])
+    encdec = cha_encdec(cfgs.dataset_cfgs['dict_dir'], cfgs.dataset_cfgs['case_sensitive'])
+    # train
+    loss_show = 0
+    ratio_res = 0.5
+    ratio_sub = 0.5
+    best_acc = 0
+    loss_ori_show = 0
+    loss_mas_show = 0
+    for iter, params in enumerate(params_):
+        # data_prepare
+        data = params['data']
+        label = params['label']  # original string
+        label_res = params['label_res']  # remaining string
+        label_sub = params['label_sub']  # occluded character
+        label_id = params['label_id']  # character index
 
-SEED = 100
-torch.manual_seed(SEED)
-paddle.seed(SEED)
-np.random.seed(SEED)
+        target = encdec.encode(label)
+        target_res = encdec.encode(label_res)
+        target_sub = encdec.encode(label_sub)
+        Train_or_Eval(model, 'Train')
+        data = data
+        label_flatten, length = flatten_label(target)
+        label_flatten_res, length_res = flatten_label(target_res)
+        label_flatten_sub, length_sub = flatten_label(target_sub)
+        target, label_flatten, target_res, target_sub, label_flatten_res = target, label_flatten, target_res, target_sub, label_flatten_res
+        label_flatten_sub, label_id = label_flatten_sub, label_id
+        # prediction
+        text_pre, text_rem, text_mas, att_mask_sub = model(data, label_id, cfgs.global_cfgs['step'])
+        if iter == 0:
+            result['forword'] = [text_pre, text_rem, text_mas, att_mask_sub]
+        if iter == 1:
+            result['backword'] = [text_pre, text_rem, text_mas, att_mask_sub]
+            return result
+        # loss_calculation
+        if cfgs.global_cfgs['step'] == 'LF_1':
+            pre_ori, label_ori = train_acc_counter.add_iter(*params['train_acc_counter'])
+            loss_ori = criterion_CE(*params['loss_ori'])
+            loss = loss_ori
+        else:
+            pre_ori, label_ori = train_acc_counter.add_iter(*params['train_acc_counter'])
+            pre_rem, label_rem = train_acc_counter_rem.add_iter(*params['train_acc_counter_rem'])
+            pre_sub, label_sub = train_acc_counter_sub.add_iter(*params['train_acc_counter_sub'])
 
-
-def accuracy(output, target, topk=(1,), flag='torch'):
-    """Computes the precision@k for the specified values of k"""
-    if flag == 'torch':
-        maxk = max(topk)
-
-        batch_size = target.shape[0]
-
-        _, pred = output.topk(maxk, 1, True, True)
-        pred = pred.t()
-
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
-        # print(correct)
-        print('------')
-        res = []
-        for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0)
-
-            res.append(correct_k.mul_(100.0 / batch_size))
-        return np.array([ele.data.cpu().numpy() for ele in res])
-    elif flag == 'paddle':
-        maxk = max(topk)
-        batch_size = target.shape[0]
-        _, pred = output.topk(maxk, 1, True, True)
-        pred = pred.t()
-        target = paddle.reshape(target, (1, -1)).expand_as(pred)
-
-        # print(pred.shape)
-        # print(target.shape)
-        correct = pred.equal(target)
-        # print(correct)
-        res = []
-        for k in topk:
-            correct_k = paddle.reshape(correct[:k], [-1]).numpy()
-            correct_k = correct_k.sum(0)
-
-            res.append((correct_k * 100.0) / batch_size)
-        return np.array(res)
-
-
-def torchRes(pre, target):
-    pre = torch.from_numpy(pre).cuda()
-    target = torch.from_numpy(target).cuda()
-
-    res = accuracy(pre, target)
-
-    return res
-
-
-def paddleRes(pre, target):
-    pre = paddle.to_tensor(pre)
-    target = paddle.to_tensor(target)
-
-    res = accuracy(pre, target, flag='paddle')
-
-    return res
-
-
-def main():
-    reprod_log_1 = ReprodLogger()
-    reprod_log_2 = ReprodLogger()
-
-    pre = np.random.randn(128, 10)
-    target = np.random.randint(0, 10, (128, 1))
-
-    pytorch_res = torchRes(pre, target)
-    paddle_res = paddleRes(pre, target)
-
-    print(type(pytorch_res))
-    reprod_log_1.add("miou", pytorch_res)
-    reprod_log_1.save("acc_torch.npy")
-
-    print(type(paddle_res))
-    reprod_log_2.add("miou", paddle_res)
-    reprod_log_2.save("acc_paddle.npy")
-
-
-def check():
-    diff_helper = ReprodDiffHelper()
-    info1 = diff_helper.load_info("./acc_torch.npy")
-    info2 = diff_helper.load_info("./acc_paddle.npy")
-    diff_helper.compare_info(info1, info2)
-    diff_helper.report(
-        diff_method="mean", diff_threshold=1e-6, path="./diff-acc.txt")
-
-
-if __name__ == "__main__":
-    main()
-    check()
+            loss_ori = criterion_CE(*params['loss_ori'])
+            loss_res = criterion_CE(*params['loss_res'])
+            loss_mas = criterion_CE(*params['loss_mas'])
+            loss = loss_ori + loss_res * ratio_res + loss_mas * ratio_sub
+            loss_ori_show += loss_res
+            loss_mas_show += loss_mas
+        # loss for display
+        loss_show += loss
+        if iter == 0:
+            result['loss'] = loss
+        # optimize
+        Zero_Grad(model)
+        loss.backward()
+        clip_grad_norm_(model.parameters(), 20, 2)
+        optimizer.step()
+        best_train_acc, _ = train_acc_counter.show_test(best_acc)
+        best_train_acc_rem, _ = train_acc_counter_rem.show_test(best_acc)
+        best_train_acc_sub, _ = train_acc_counter_sub.show_test(best_acc)
+        result['acc'] = [best_train_acc, best_train_acc_rem, best_train_acc_sub]
+        optimizer_scheduler.step()

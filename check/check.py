@@ -2,6 +2,7 @@ import os, sys
 import pickle
 
 import numpy as np
+import torch
 from reprod_log import ReprodDiffHelper
 from reprod_log import ReprodLogger
 
@@ -131,7 +132,7 @@ def paddleRes():
     best_acc = 0
     loss_ori_show = 0
     loss_mas_show = 0
-    for iter, params in enumerate(params_):
+    for iter, params in enumerate(paddle_params_):
         # data_prepare
         data = params['data']
         label = params['label']  # original string
@@ -215,36 +216,33 @@ def check(k):
         diff_method="mean", diff_threshold=1e-6, path=f"{f}/diff-{k}.txt")
 
 
-def decode(_params_) -> list or dict:
+def decode(_params_, frame='paddle') -> list or dict:
     if isinstance(_params_, dict):
         params_ = {}
         for k, v in _params_.items():
             """[str(l, encoding="utf-8") for l in label] """
             k = str(k, encoding='utf-8')
-            if isinstance(v, (list, tuple)):
-                v = decode(v)
-            elif isinstance(v, (bytes)):
-                v = str(v, encoding="utf-8")
-            elif isinstance(v, (dict)):
-                v = decode(v)
-            params_[k] = v
+            params_[k] = decode(v, frame)
         return params_
-    if isinstance(_params_, (list, tuple)):
+    elif isinstance(_params_, (list, tuple)):
         params_ = []
-        for i, v in enumerate(_params_):
-            if isinstance(v, (list, tuple)):
-                v = decode(v)
-            elif isinstance(v, (bytes)):
-                v = str(v, encoding="utf-8")
-            elif isinstance(v, (dict)):
-                v = decode(v)
-            params_.append(v)
+        for v in _params_:
+            params_.append(decode(v, frame))
         return params_
+    elif isinstance(_params_, (bytes)):
+        params_ = str(_params_, encoding="utf-8")
+        return params_
+    elif isinstance(_params_, (torch.Tensor)):
+        if frame == 'torch':
+            return _params_
+        else:
+            paddle_params_ = paddle.to_tensor(_params_.cpu().detach().numpy())
+            return paddle_params_
 
 
 if __name__ == "__main__":
     with open('params.pkl', 'rb') as f:
         # params_ = pickle.load(f)
         _params_ = pickle.load(f, encoding='bytes')
-    params_ = decode(_params_)
+    paddle_params_, params_ = decode(_params_), decode(_params_, 'torch')
     main()
