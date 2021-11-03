@@ -24,7 +24,7 @@ class PositionalEncoding(nn.Layer):
         return paddle.to_tensor(sinusoid_table, dtype='float32').unsqueeze(0)
 
     def forward(self, x):
-        return x + self.pos_table[:, :x.size(1)].clone().detach()
+        return x + self.pos_table[:, :x.shape[1]].clone().detach()
 
 
 class ScaledDotProductAttention(nn.Layer):
@@ -37,7 +37,7 @@ class ScaledDotProductAttention(nn.Layer):
         self.softmax = nn.Softmax(axis=2)
 
     def forward(self, q, k, v, mask=None):
-        attn = paddle.bmm(q, k.transpose(1, 2))
+        attn = paddle.bmm(q, k.transpose([0, 2, 1]))
         attn = attn / self.temperature
         if mask is not None:
             attn = attn.masked_fill(mask, -1e9)
@@ -69,20 +69,20 @@ class MultiHeadAttention(nn.Layer):
 
     def forward(self, q, k, v, mask=None):
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
-        sz_b, len_q, _ = q.size()
-        sz_b, len_k, _ = k.size()
-        sz_b, len_v, _ = v.size()
+        sz_b, len_q, _ = q.shape
+        sz_b, len_k, _ = k.shape
+        sz_b, len_v, _ = v.shape
         residual = q
-        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)  # 4*21*512 ---- 4*21*8*64
-        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
-        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
-        q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_q, d_k)  # (n*b) x lq x dk
-        k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_k, d_k)  # (n*b) x lk x dk
-        v = v.permute(2, 0, 1, 3).contiguous().view(-1, len_v, d_v)  # (n*b) x lv x dv
+        q = self.w_qs(q).reshape([sz_b, len_q, n_head, d_k])  # 4*21*512 ---- 4*21*8*64
+        k = self.w_ks(k).reshape([sz_b, len_k, n_head, d_k])
+        v = self.w_vs(v).reshape([sz_b, len_v, n_head, d_v])
+        q = q.transpose([2, 0, 1, 3]).reshape([-1, len_q, d_k])  # (n*b) x lq x dk
+        k = k.transpose([2, 0, 1, 3]).reshape([-1, len_k, d_k])  # (n*b) x lk x dk
+        v = v.transpose([2, 0, 1, 3]).reshape([-1, len_v, d_v])  # (n*b) x lv x dv
         mask = mask.repeat(n_head, 1, 1) if mask is not None else None  # (n*b) x .. x ..
         output, attn = self.attention(q, k, v, mask=mask)
-        output = output.view(n_head, sz_b, len_q, d_v)
-        output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
+        output = output.reshape([n_head, sz_b, len_q, d_v])
+        output = output.transpose([1, 2, 0, 3]).reshape([sz_b, len_q, -1])  # b x lq x (n*dv)
         output = self.dropout(self.fc(output))
         output = self.layer_norm(output + residual)
         return output, attn
@@ -100,9 +100,9 @@ class PositionwiseFeedForward(nn.Layer):
 
     def forward(self, x):
         residual = x
-        x = x.transpose(1, 2)
+        x = x.transpose([1, 2])
         x = self.w_2(F.relu(self.w_1(x)))
-        x = x.transpose(1, 2)
+        x = x.transpose([1, 2])
         x = self.dropout(x)
         x = self.layer_norm(x + residual)
         return x
@@ -179,10 +179,10 @@ class PP_layer(nn.Layer):
         reading_order = reading_order.unsqueeze(0).expand(enc_output.size(0), -1)  # (S,) -> (B, S)
         reading_order = self.f0_embedding(reading_order)  # b,25,512
         # calculate attention
-        t = self.w0(reading_order.permute(0, 2, 1))  # b,512,256
-        t = self.active(t.permute(0, 2, 1) + self.wv(enc_output))  # b,256,512
+        t = self.w0(reading_order.transpose([0, 2, 1]))  # b,512,256
+        t = self.active(t.transpose([0, 2, 1]) + self.wv(enc_output))  # b,256,512
         t = self.we(t)  # b,256,25
-        t = self.softmax(t.permute(0, 2, 1))  # b,25,256
+        t = self.softmax(t.transpose([0, 2, 1]))  # b,25,256
         g_output = paddle.bmm(t, enc_output)  # b,25,512
         return g_output, t
 

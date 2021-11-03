@@ -1,16 +1,19 @@
-import paddle
+import paddle, os, sys
 import paddle.nn as nn
 
 import paddle.nn.functional as F
 
-from modules.modules import Transforme_Encoder, Prediction, Transforme_Encoder_light
-import modules.resnet as resnet
+DIR = os.path.split(os.path.realpath(__file__))[0]
+sys.path.append(os.path.join(DIR, './'))
+from paddle_VisionLAN.modules.modules import Transforme_Encoder, Prediction, Transforme_Encoder_light
+import paddle_VisionLAN.modules.resnet as resnet
 
 
 class MLM(nn.Layer):
     '''
     Architecture of MLM
     '''
+
     def __init__(self, n_dim=512):
         super(MLM, self).__init__()
         self.MLM_SequenceModeling_mask = Transforme_Encoder(n_layers=2, n_position=256)
@@ -27,26 +30,28 @@ class MLM(nn.Layer):
         feature_v_seq = self.MLM_SequenceModeling_mask(input, src_mask=None)[0]
         # position embedding layer
         pos_emb = self.pos_embedding(label_pos.long())
-        pos_emb = self.w0_linear(paddle.unsqueeze(pos_emb, axis=2)).permute(0, 2, 1)
+        pos_emb = self.w0_linear(paddle.unsqueeze(pos_emb, axis=2)).transpose([0, 2, 1])
         # fusion position embedding with features V & generate mask_c
         att_map_sub = self.active(pos_emb + self.wv(feature_v_seq))
         att_map_sub = self.we(att_map_sub)  # b,256,1
-        att_map_sub = self.sigmoid(att_map_sub.permute(0, 2, 1))  # b,1,256
+        att_map_sub = self.sigmoid(att_map_sub.transpose([0, 2, 1]))  # b,1,256
         # WCL
         ## generate inputs for WCL
-        f_res = input * (1 - att_map_sub.permute(0, 2, 1)) # second path with remaining string
-        f_sub = input * (att_map_sub.permute(0, 2, 1)) # first path with occluded character
+        f_res = input * (1 - att_map_sub.transpose([0, 2, 1]))  # second path with remaining string
+        f_sub = input * (att_map_sub.transpose([0, 2, 1]))  # first path with occluded character
         ## transformer units in WCL
         f_res = self.MLM_SequenceModeling_WCL(f_res, src_mask=None)[0]
         f_sub = self.MLM_SequenceModeling_WCL(f_sub, src_mask=None)[0]
         return f_res, f_sub, att_map_sub
 
+
 def trans_1d_2d(x):
     b, w_h, c = x.shape  # b, 256, 512
-    x = x.permute(0, 2, 1)
+    x = x.transpose([0, 2, 1])
     x = x.view(b, c, 32, 8)
-    x = x.permute(0, 1, 3, 2)  # [16, 512, 8, 32]
+    x = x.transpose([0, 1, 3, 2])  # [16, 512, 8, 32]
     return x
+
 
 class MLM_VRM(nn.Layer):
     '''
@@ -62,18 +67,21 @@ class MLM_VRM(nn.Layer):
     text_mas: prediction of occluded character in MLM
     mask_c_show: visualization of Mask_c
     '''
-    def __init__(self,):
+
+    def __init__(self, ):
         super(MLM_VRM, self).__init__()
         self.MLM = MLM()
         self.SequenceModeling = Transforme_Encoder(n_layers=3, n_position=256)
-        self.Prediction = Prediction(n_position=256, N_max_character=26, n_class=37) # N_max_character = 1 eos + 25 characters
+        self.Prediction = Prediction(n_position=256, N_max_character=26,
+                                     n_class=37)  # N_max_character = 1 eos + 25 characters
         self.nclass = 37
-    def forward(self, input, label_pos, training_stp, is_Train = False):
+
+    def forward(self, input, label_pos, training_stp, is_Train=False):
         b, c, h, w = input.shape
         nT = 25
-        input = input.permute(0, 1, 3, 2)
-        input = input.contiguous().view(b, c, -1)
-        input = input.permute(0, 2, 1)
+        input = input.transpose([0, 1, 3, 2])
+        input = input.reshape([b, c, -1])
+        input = input.transpose([0, 2, 1])
         if is_Train:
             if training_stp == 'LF_1':
                 f_res = 0
@@ -86,7 +94,7 @@ class MLM_VRM(nn.Layer):
                 f_res, f_sub, mask_c = self.MLM(input, label_pos, state=True)
                 input = self.SequenceModeling(input, src_mask=None)[0]
                 text_pre, test_rem, text_mas = self.Prediction(input, f_res, f_sub, Train_is=True)
-                mask_c_show = trans_1d_2d(mask_c.permute(0, 2, 1))
+                mask_c_show = trans_1d_2d(paddle.transpose(mask_c, [0, 2, 1]))
                 return text_pre, test_rem, text_mas, mask_c_show
             elif training_stp == 'LA':
                 # MLM
@@ -96,20 +104,20 @@ class MLM_VRM(nn.Layer):
                 ratio = 2
                 character_mask = paddle.zeros_like(mask_c)
                 character_mask[0:b // ratio, :, :] = mask_c[0:b // ratio, :, :]
-                input = input * (1 - character_mask.permute(0, 2, 1))
+                input = input * (1 - paddle.transpose(character_mask, [0, 2, 1]))
                 # VRM
                 ## transformer unit for VRM
                 input = self.SequenceModeling(input, src_mask=None)[0]
                 ## prediction layer for MLM and VSR
                 text_pre, test_rem, text_mas = self.Prediction(input, f_res, f_sub, Train_is=True)
-                mask_c_show = trans_1d_2d(mask_c.permute(0, 2, 1))
+                mask_c_show = trans_1d_2d(mask_c.transpose([0, 2, 1]))
                 return text_pre, test_rem, text_mas, mask_c_show
-        else: # VRM is only used in the testing stage
+        else:  # VRM is only used in the testing stage
             f_res = 0
             f_sub = 0
             contextual_feature = self.SequenceModeling(input, src_mask=None)[0]
             C = self.Prediction(contextual_feature, f_res, f_sub, Train_is=False, use_mlm=False)
-            C = C.permute(1, 0, 2)  # (25, b, 38))
+            C = C.transpose([1, 0, 2])  # (25, b, 38))
             lenText = nT
             nsteps = nT
             out_res = paddle.zeros(lenText, b, self.nclass).type_as(input.data)
@@ -148,17 +156,20 @@ class VisionLAN(nn.Layer):
     test_rem: remaining string prediction from MLM
     text_mas: occluded character prediction from MLM
     '''
+
     def __init__(self, strides, input_shape):
         super(VisionLAN, self).__init__()
         self.backbone = resnet.resnet45(strides, compress_layer=False)
         self.input_shape = input_shape
         self.MLM_VRM = MLM_VRM()
-    def forward(self, input, label_pos, training_stp, Train_in = True):
+
+    def forward(self, input, label_pos, training_stp, Train_in=True):
         # extract features
         features = self.backbone(input)
         # MLM + VRM
         if Train_in:
-            text_pre, test_rem, text_mas, mask_map = self.MLM_VRM(features[-1], label_pos, training_stp, is_Train=Train_in)
+            text_pre, test_rem, text_mas, mask_map = self.MLM_VRM(features[-1], label_pos, training_stp,
+                                                                  is_Train=Train_in)
             return text_pre, test_rem, text_mas, mask_map
         else:
             output, out_length = self.MLM_VRM(features[-1], label_pos, training_stp, is_Train=Train_in)

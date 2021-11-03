@@ -1,6 +1,8 @@
+import os, sys
 import paddle.nn as nn
 import math
-
+DIR = os.path.split(os.path.realpath(__file__))[0]
+sys.path.append(os.path.join(DIR, '../'))
 from api import normal_, fill_, zero_
 
 
@@ -93,29 +95,29 @@ class ResNet(nn.Layer):
         x = self.conv1_new(x)
         x = self.bn1(x)
         x = self.relu(x)
-        tmp_shape = x.size()[2:]
+        tmp_shape = x.shape[2:]
         x = self.layer1(x)
-        if x.size()[2:] != tmp_shape:
-            tmp_shape = x.size()[2:]
+        if x.shape[2:] != tmp_shape:
+            tmp_shape = x.shape[2:]
             out_features.append(x)
         x = self.layer2(x)
-        if x.size()[2:] != tmp_shape:
-            tmp_shape = x.size()[2:]
+        if x.shape[2:] != tmp_shape:
+            tmp_shape = x.shape[2:]
             out_features.append(x)
         x = self.layer3(x)
-        if x.size()[2:] != tmp_shape:
-            tmp_shape = x.size()[2:]
+        if x.shape[2:] != tmp_shape:
+            tmp_shape = x.shape[2:]
             out_features.append(x)
         x = self.layer4(x)
-        if x.size()[2:] != tmp_shape:
-            tmp_shape = x.size()[2:]
+        if x.shape[2:] != tmp_shape:
+            tmp_shape = x.shape[2:]
             out_features.append(x)
         x = self.layer5(x)
         if not self.compress_layer:
             out_features.append(x)
         else:
-            if x.size()[2:] != tmp_shape:
-                tmp_shape = x.size()[2:]
+            if x.shape[2:] != tmp_shape:
+                tmp_shape = x.shape[2:]
                 out_features.append(x)
             x = self.layer6(x)
             out_features.append(x)
