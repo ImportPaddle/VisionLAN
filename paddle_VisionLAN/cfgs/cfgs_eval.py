@@ -1,11 +1,13 @@
 # coding:utf-8
-import torch
-import torch.optim as optim
+import paddle
+import paddle.optimizer as optim
 import os
 
 from data.dataset_scene import *
-from torchvision import transforms
+from paddle.vision import transforms
 from VisionLAN import *
+
+from VisionLAN import VisionLAN
 
 global_cfgs = {
     'state': 'Test',

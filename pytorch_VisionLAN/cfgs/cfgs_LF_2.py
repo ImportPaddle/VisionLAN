@@ -2,9 +2,8 @@
 import torch
 import torch.optim as optim
 import os
-from pytorch_VisionLAN.data.dataset_scene import *
 from torchvision import transforms
-from pytorch_VisionLAN import *
+
 
 global_cfgs = {
     'state': 'Train',
@@ -17,8 +16,10 @@ dataset_cfgs = {
     'dataset_train': lmdbDataset,
     'dataset_train_args': {
         'roots': [
-            'fromgithub/MASTER/datasets/data_lmdb_release/data_lmdb_release/training/ST',
-            'fromgithub/MASTER/datasets/data_lmdb_release/data_lmdb_release/training/MJ',
+            '/app/wht/lc/VisionLAN/datasets/training/ST',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_test',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_train',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_valid',
         ],
         'img_height': 64,
         'img_width': 256,
@@ -35,7 +36,7 @@ dataset_cfgs = {
     'dataset_test': lmdbDataset,
     'dataset_test_args': {
         'roots': [
-            './datasets/evaluation/Sumof6benchmarks'
+            '/app/wht/lc/VisionLAN/datasets/evaluation/Sumof6benchmarks'
         ],
         'img_height': 64,
         'img_width': 256,

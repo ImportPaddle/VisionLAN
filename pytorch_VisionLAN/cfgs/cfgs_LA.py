@@ -1,10 +1,17 @@
 # coding:utf-8
+import sys
+
 import torch
 import torch.optim as optim
 import os
-from pytorch_VisionLAN.data.dataset_scene import *
 from torchvision import transforms
-from pytorch_VisionLAN import *
+
+
+DIR = os.path.split(os.path.realpath(__file__))[0]
+sys.path.append(os.path.join(DIR, '../'))
+from data.dataset_scene import lmdbDataset
+from data.dataset_scene_vis import *
+from VisionLAN import VisionLAN
 
 global_cfgs = {
     'state': 'Train',
@@ -17,8 +24,10 @@ dataset_cfgs = {
     'dataset_train': lmdbDataset,
     'dataset_train_args': {
         'roots': [
-            'fromgithub/MASTER/datasets/data_lmdb_release/data_lmdb_release/training/ST',
-            'fromgithub/MASTER/datasets/data_lmdb_release/data_lmdb_release/training/MJ',
+            '/app/wht/lc/VisionLAN/datasets/training/ST',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_test',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_train',
+            '/app/wht/lc/VisionLAN/datasets/training/MJ/MJ_valid',
         ],
         'img_height': 64,
         'img_width': 256,
@@ -26,16 +35,18 @@ dataset_cfgs = {
         'global_state': 'Train',
     },
     'dataloader_train': {
-        'batch_size': 220,
+        'batch_size': 1,
+        # 'batch_size': 220,
         'shuffle': True,
-        'num_workers': 32,
+        'num_workers': 16,
+        # 'num_workers': 32,
         'pin_memory': True,
     },
 
     'dataset_test': lmdbDataset,
     'dataset_test_args': {
         'roots': [
-            './datasets/evaluation/Sumof6benchmarks'
+            '/app/wht/lc/VisionLAN/datasets/evaluation/Sumof6benchmarks'
         ],
         'img_height': 64,
         'img_width': 256,
@@ -50,21 +61,22 @@ dataset_cfgs = {
         'pin_memory': True,
     },
     'case_sensitive': False,
-    'dict_dir' : './dict/dic_36.txt'
+    'dict_dir': './dict/dic_36.txt'
 }
 
 net_cfgs = {
     'VisualLAN': VisionLAN,
     'args': {
-        'strides': [(1,1), (2,2), (2,2), (2,2), (1,1), (1,1)],
-        'input_shape': [3, 64, 256], # C x H x W
+        'strides': [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (1, 1)],
+        'input_shape': [3, 64, 256],  # C x H x W
     },
 
-    'init_state_dict': './output/LF_2/LF_2.pth',
+    'init_state_dict': None,
+    # 'init_state_dict': './output/LF_2/LF_2.pth',
 }
 optimizer_cfgs = {
     'optimizer_0': optim.Adam,
-    'optimizer_0_args':{
+    'optimizer_0_args': {
         'lr': 0.0001,
     },
     'optimizer_0_scheduler': optim.lr_scheduler.MultiStepLR,

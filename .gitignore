@@ -3,3 +3,6 @@
 .idea/
 2108.09661v1.pdf
 .DS_Store
+/paddle_VisionLAN/output/
+/paddle_VisionLAN/c/
+/check/params.pkl

@@ -1,11 +1,13 @@
 # coding:utf-8
-import torch
-import torch.optim as optim
+import paddle
+import paddle.optimizer as optim
 import os
-from data.dataset_scene_vis import *
-from torchvision import transforms
 
 from VisionLAN import VisionLAN
+
+from data.dataset_scene import *
+from paddle.vision import transforms
+
 
 global_cfgs = {
     'state': 'Train',
@@ -27,13 +29,13 @@ dataset_cfgs = {
         'img_width': 256,
         'transform': transforms.Compose([transforms.ToTensor()]),
         'global_state': 'Train',
-        'mask_id': 6 # 1 2 or n
     },
     'dataloader_train': {
-        'batch_size': 32,
+        'batch_size': 64,
+        # 'batch_size': 220,
         'shuffle': True,
-        'num_workers': 32,
-        'pin_memory': True,
+        'num_workers': 16,
+        # 'num_workers': 32,
     },
 
     'dataset_test': lmdbDataset,
@@ -51,7 +53,6 @@ dataset_cfgs = {
         'batch_size': 64,
         'shuffle': False,
         'num_workers': 16,
-        'pin_memory': True,
     },
     'case_sensitive': False,
     'dict_dir' : './dict/dic_36.txt'
@@ -63,6 +64,24 @@ net_cfgs = {
         'strides': [(1,1), (2,2), (2,2), (2,2), (1,1), (1,1)],
         'input_shape': [3, 64, 256], # C x H x W
     },
-    'init_state_dict': './output/LA/final.pth'
-}
 
+    'init_state_dict': None,
+    # 'init_state_dict': './output/LF_2/LF_2.pth',
+}
+optimizer_cfgs = {
+    'optimizer_0': optim.Adam,
+    'optimizer_0_args':{
+        'lr': 0.0001,
+    },
+    'optimizer_0_scheduler': optim.lr.MultiStepDecay,
+    'optimizer_0_scheduler_args': {
+        'milestones': [6],
+        'gamma': 0.1,
+        'learning_rate': 0.0001
+    },
+}
+saving_cfgs = {
+    'saving_epoch_interval': 1,
+    'saving_path': './output/LA/',
+
+}

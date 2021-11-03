@@ -1,18 +1,16 @@
 # coding:utf-8
 import random
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data import sampler
-import torchvision.transforms as transforms
+from paddle.io import Dataset
+import paddle.vision.transforms as transforms
 import lmdb
 import six
 import sys
 from PIL import Image
 import numpy as np
-import pdb
-import os
 import cv2
-from transforms import CVColorJitter, CVDeterioration, CVGeometry
+
+from api import ToPILImage
+from .transforms import CVColorJitter, CVDeterioration, CVGeometry
 import re
 from random import sample
 
@@ -91,7 +89,7 @@ class lmdbDataset(Dataset):
         if is_train == 'Train':
             img = self.augment_tfs(img)
         img = cv2.resize(np.array(img), (self.img_width, self.img_height))
-        img = transforms.ToPILImage()(img)
+        img = ToPILImage(transforms)(img)
         return img
 
     def __len__(self):

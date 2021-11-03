@@ -1,0 +1,7 @@
+Colour
+LMDB
+Pillow
+opencv-python
+editdistance
+matplotlib==2.2.5
+future
