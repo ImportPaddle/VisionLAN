@@ -17,7 +17,7 @@ class cha_encdec():
 
     def encode(self, label_batch):
         max_len = max([len(s) for s in label_batch])
-        out = paddle.zeros(len(label_batch), max_len + 1).long()
+        out = paddle.zeros([len(label_batch), max_len + 1])
         for i in range(0, len(label_batch)):
             if not self.case_sensitive:
                 cur_encoded = paddle.to_tensor(

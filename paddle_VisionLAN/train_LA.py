@@ -68,16 +68,16 @@ def load_network():
 
 def generate_optimizer(model):
     if cfgs.global_cfgs['step'] != 'LF_2':
-        scheduler = cfgs.optimizer_cfgs['optimizer_0_scheduler'](**cfgs.optimizer_cfgs['optimizer_0_scheduler_args'])
-        out = paddle.optimizer.Adam(learning_rate=scheduler, parameters=[{'params': model.parameters(), 'lr': cfgs.optimizer_cfgs['optimizer_0_args']['lr']}])
+        scheduler = paddle.optimizer.lr.MultiStepDecay(learning_rate=0.0001, milestones=[6], gamma=0.1)
+        out = paddle.optimizer.Adam(learning_rate=scheduler, parameters=model.parameters())
         return out, scheduler
     else:
         id_mlm = id(model.module.MLM_VRM.MLM.parameters())
         id_pre_mlm = id(model.module.MLM_VRM.Prediction.pp_share.parameters()) + id(model.module.MLM_VRM.Prediction.w_share.parameters())
         id_total = id_mlm + id_pre_mlm
-        scheduler = cfgs.optimizer_cfgs['optimizer_0_scheduler'](**cfgs.optimizer_cfgs['optimizer_0_scheduler_args'])
-        out = paddle.optimizer.Adam(learning_rate=scheduler, parameters=[{'params': filter(lambda p: id(p) == id_total, model.parameters()), 'lr': cfgs.optimizer_cfgs['optimizer_0_args']['lr']},
-                                {'params': filter(lambda p: id(p) != id_total, model.parameters()),'lr': cfgs.optimizer_cfgs['optimizer_0_args']['lr'] * 0.1}])
+        scheduler = paddle.optimizer.lr.MultiStepDecay(learning_rate=0.0001, milestones=[6], gamma=0.1)
+        out = paddle.optimizer.Adam(learning_rate=scheduler, parameters=[filter(lambda p: id(p) == id_total, model.parameters()),
+                                filter(lambda p: id(p) != id_total, model.parameters())])
         return out, scheduler
 
 def _flatten(sources, lengths):
