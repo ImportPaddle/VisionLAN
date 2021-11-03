@@ -26,7 +26,7 @@ class cha_encdec():
             else:
                 cur_encoded = paddle.to_tensor([self.dict.index(char) if char in self.dict else len(self.dict)
                                                 for char in label_batch[i]]) + 1
-            out[i][0:len(cur_encoded)] = cur_encoded
+            out[i][0:len(cur_encoded)] = cur_encoded.numpy()
         return out
 
     def decode(self, net_out, length):

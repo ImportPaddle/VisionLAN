@@ -17,7 +17,7 @@ import os
 def flatten_label(target):
     label_flatten = []
     label_length = []
-    for i in range(0, target.size()[0]):
+    for i in range(0, target.shape[0]):
         cur_label = target[i].tolist()
         label_flatten += cur_label[:cur_label.index(0) + 1]
         label_length.append(cur_label.index(0) + 1)
